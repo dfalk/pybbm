@@ -11,7 +11,6 @@ from django.utils.translation import ugettext_lazy as _
 from django.conf import settings
 
 from annoying.fields import AutoOneToOneField
-from sorl.thumbnail import ImageField
 from pybb.util import unescape
 
 try:
@@ -329,7 +328,7 @@ class PybbProfile(models.Model):
     show_signatures = models.BooleanField(_('Show signatures'), blank=True,
         default=True)
     post_count = models.IntegerField(_('Post count'), blank=True, default=0)
-    avatar = ImageField(_('Avatar'), blank=True, null=True,
+    avatar = models.ImageField(_('Avatar'), blank=True, null=True,
         upload_to=get_file_path)
     autosubscribe = models.BooleanField(_('Automatically subscribe'),
         help_text=_('Automatically subscribe to topics that you answer'),

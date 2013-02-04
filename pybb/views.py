@@ -33,10 +33,21 @@ from pybb.templatetags.pybb_tags import pybb_topic_moderated_by
 from pybb import defaults
 
 
-def filter_hidden(request, queryset_or_model):
+def filter_hidden_categories(request, queryset_or_model):
     """
     Return queryset for model, manager or queryset, filtering hidden objects for non staff users.
     """
+    queryset = _get_queryset(queryset_or_model)
+    user = request.user
+    if not user.is_superuser:
+        user_groups = user.groups.all() or [] # need 'or []' for anonymous user otherwise: 'EmptyManager' object is not iterable
+        queryset = queryset.filter(Q(groups__in=user_groups) | Q(groups__isnull=True))
+    return queryset
+
+def filter_hidden(request, queryset_or_model):
+    """
+Return queryset for model, manager or queryset, filtering hidden objects for non staff users.
+"""
     queryset = _get_queryset(queryset_or_model)
     if request.user.is_staff:
         return queryset
@@ -65,7 +76,7 @@ class IndexView(generic.ListView):
         return ctx
 
     def get_queryset(self):
-        return filter_hidden(self.request, Category)
+        return filter_hidden_categories(self.request, Category)
 
     
 class CategoryView(generic.DetailView):

@@ -4,7 +4,7 @@ import os.path
 import uuid
 
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.core.urlresolvers import reverse
 from django.utils.html import strip_tags
 from django.utils.translation import ugettext_lazy as _
@@ -60,6 +60,7 @@ def get_file_path(instance, filename, to='pybb/avatar'):
 class Category(models.Model):
     name = models.CharField(_('Name'), max_length=80)
     position = models.IntegerField(_('Position'), blank=True, default=0)
+    groups = models.ManyToManyField(Group, blank=True, null=True, verbose_name=_('Groups'), help_text=_('Only users from these groups can see this category'))
     hidden = models.BooleanField(_('Hidden'), blank=False, null=False, default=False,
         help_text = _('If checked, this category will be visible only for staff')
     )
@@ -85,6 +86,17 @@ class Category(models.Model):
     @property
     def posts(self):
         return Post.objects.filter(topic__forum__category=self).select_related()
+
+    def has_access(self, user):
+        if user.is_superuser:
+            return True
+        if self.groups.exists():
+            if user.is_authenticated():
+                if not self.groups.filter(user__pk=user.id).exists():
+                    return False
+            else:
+                return False
+        return True
 
 
 class Forum(models.Model):

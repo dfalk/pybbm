@@ -85,7 +85,8 @@ class CategoryView(generic.DetailView):
     context_object_name = 'category'
 
     def get_queryset(self):
-        return filter_hidden(self.request, Category)
+        qs = filter_hidden_categories(self.request, Category)
+        return qs
 
     def get_context_data(self, **kwargs):
         ctx = super(CategoryView, self).get_context_data(**kwargs)
@@ -108,6 +109,8 @@ class ForumView(generic.ListView):
 
     def get_queryset(self):
         self.forum = get_object_or_404(filter_hidden(self.request, Forum), pk=self.kwargs['pk'])
+        if not self.forum.category.has_access(self.request.user):
+            raise Http404()
         if self.forum.category.hidden and (not self.request.user.is_staff):
             raise Http404()
         qs = self.forum.topics.order_by('-sticky', '-updated').select_related()
@@ -127,12 +130,17 @@ class LatestTopicsView(generic.ListView):
     paginator_class = Paginator
 
     def get_queryset(self):
+        user = self.request.user
         qs = Topic.objects.all().select_related()
         qs = filter_hidden_topics(self.request, qs)
-        if not self.request.user.is_superuser:
-            if self.request.user.is_authenticated():
-                qs = qs.filter(Q(forum__moderators=self.request.user) |
-                               Q(user=self.request.user) |
+        viewable_category = Category.objects.all()
+        user_groups = user.groups.all() or [] # need 'or []' for anonymous user otherwise: 'EmptyManager' object is not iterable
+        viewable_category = viewable_category.filter(Q(groups__in=user_groups) | Q(groups__isnull=True))
+        qs = qs.filter(forum__category__in=viewable_category)
+        if not user.is_superuser:
+            if user.is_authenticated():
+                qs = qs.filter(Q(forum__moderators=user) |
+                               Q(user=user) |
                                Q(on_moderation=False))
             else:
                 qs = qs.filter(on_moderation=False)
@@ -147,6 +155,8 @@ class TopicView(generic.ListView):
 
     def get_queryset(self):
         self.topic = get_object_or_404(Topic.objects.select_related('forum'), pk=self.kwargs['pk'])
+        if not self.topic.forum.category.has_access(self.request.user):
+            raise Http404()
         if self.topic.on_moderation and\
            not pybb_topic_moderated_by(self.topic, self.request.user) and\
            not self.request.user == self.topic.user:
